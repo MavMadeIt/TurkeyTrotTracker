@@ -20,16 +20,22 @@
     <p id="loginStatus" class="status" role="status"></p>
   </section>
   <section id="tracker" hidden>
+    <div class="map-tools">
+      <strong id="focusStatus">Waiting for runners…</strong>
+      <span class="small">Map focus changes to another active runner every 5 minutes.</span>
+    </div>
     <div id="map"></div>
     <div id="runnerList" class="runner-list"></div>
-    <p class="small">Pace is average minutes per mile. Time is elapsed since the first GPS point. Distance and pace are GPS estimates. Locations and stats are held temporarily in server memory and clear when the service restarts.</p>
+    <p class="small">Colored lines show each runner’s route trail. All runners continue sharing location while the map changes focus. Pace is average minutes per mile. Time is elapsed since the first GPS point. Distance, pace, and GPS trails are estimates. Runners must choose to share their location. Data is held temporarily in server memory and clears when the service restarts.</p>
   </section>
 </main>
 <script>
 const socket = io();
 const names = ["M.M", "G.L", "V.L", "C.M", "E.M", "G.M", "J.M"];
-const markers = {}, rows = {};
-let map;
+const markers = {}, rows = {}, trails = {};
+const trailColors = {"M.M":"#e4572e", "G.L":"#2e86ab", "V.L":"#6a4c93", "C.M":"#2a9d8f", "E.M":"#e9c46a", "G.M":"#d1495b", "J.M":"#577590"};
+let map, focusTimer = null, focusIndex = -1;
+const activeRunners = new Set();
 const list = document.getElementById("runnerList");
 function setStatus(message, error=false) {
   const el = document.getElementById("loginStatus");
@@ -64,9 +70,38 @@ function renderRunner(name, data) {
 function updateLocation(loc) {
   if (!map) return;
   const point = [loc.lat, loc.lng];
+  activeRunners.add(loc.runner);
   if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(loc.runner);
   else markers[loc.runner].setLatLng(point);
+
+  if (!trails[loc.runner]) {
+    const initialTrail = Array.isArray(loc.trail) ? loc.trail : [point];
+    trails[loc.runner] = L.polyline(initialTrail, {
+      color: trailColors[loc.runner] || "#3388ff", weight: 5, opacity: 0.8
+    }).addTo(map);
+  } else if (Array.isArray(loc.trail)) {
+    trails[loc.runner].setLatLngs(loc.trail);
+  } else if (Array.isArray(loc.trail_point)) {
+    trails[loc.runner].addLatLng(loc.trail_point);
+  }
   renderRunner(loc.runner, loc);
+  if (focusIndex === -1) focusNextRunner();
+}
+function focusRunner(name) {
+  if (!name || !markers[name]) return;
+  map.flyTo(markers[name].getLatLng(), 16, {duration: 1.2});
+  markers[name].openPopup();
+  document.getElementById("focusStatus").textContent = "Map focus: " + name;
+}
+function focusNextRunner() {
+  const available = names.filter(name => activeRunners.has(name) && markers[name]);
+  if (!available.length) {
+    document.getElementById("focusStatus").textContent = "Waiting for active runners…";
+    focusIndex = -1;
+    return;
+  }
+  focusIndex = (focusIndex + 1) % available.length;
+  focusRunner(available[focusIndex]);
 }
 document.getElementById("connect").addEventListener("click", () => {
   const code = document.getElementById("organizerCode").value.trim();
@@ -83,12 +118,28 @@ socket.on("initial_locations", locations => {
     maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
   names.forEach(n => renderRunner(n, null));
-  locations.forEach(updateLocation);
+  locations.forEach(loc => {
+    const point = [loc.lat, loc.lng];
+    activeRunners.add(loc.runner);
+    if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(loc.runner);
+    else markers[loc.runner].setLatLng(point);
+    if (!trails[loc.runner]) trails[loc.runner] = L.polyline(loc.trail || [point], {
+      color: trailColors[loc.runner] || "#3388ff", weight: 5, opacity: 0.8
+    }).addTo(map);
+    renderRunner(loc.runner, loc);
+  });
+  if (activeRunners.size) {
+    focusNextRunner();
+    focusTimer = setInterval(focusNextRunner, 5 * 60 * 1000);
+  }
 });
 socket.on("location_update", updateLocation);
 socket.on("runner_stopped", d => {
+  activeRunners.delete(d.runner);
   if (markers[d.runner]) { map.removeLayer(markers[d.runner]); delete markers[d.runner]; }
+  if (trails[d.runner]) { map.removeLayer(trails[d.runner]); delete trails[d.runner]; }
   renderRunner(d.runner, {stopped:true});
+  if (activeRunners.size && !activeRunners.has(names[focusIndex])) focusNextRunner();
 });
 </script>
 </body></html>
