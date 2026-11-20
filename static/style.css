@@ -1,0 +1,15 @@
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#18212b;font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:22px}
+.panel,.wide{margin:5vh auto;background:white;border-radius:22px;padding:28px;box-shadow:0 12px 40px #17202a12}
+.panel{max-width:480px}.wide{max-width:1000px}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;color:#a34b18}
+h1{font-size:clamp(28px,5vw,40px);margin:8px 0 12px}
+.muted,.small{color:#65717e;line-height:1.5}.small{font-size:12px;margin-top:20px}
+label{display:block;font-weight:650;margin:18px 0 7px}
+input,select{width:100%;padding:13px;border:1px solid #ccd3da;border-radius:11px;font:inherit;background:white}
+button{width:100%;border:0;border-radius:11px;padding:14px;margin-top:18px;background:#176b45;color:white;font-weight:750;font-size:16px;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#e9edf0;color:#26323d;margin-top:10px}
+.status{min-height:24px;font-weight:650;color:#176b45}.error{color:#b42318}
+#map{height:58vh;min-height:320px;border-radius:15px;margin:18px 0}
+.runner-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}
+.runner-row{background:#f1f4f6;padding:12px;border-radius:10px;font-weight:650}
+[hidden]{display:none!important}
