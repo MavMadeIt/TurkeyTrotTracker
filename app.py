@@ -4,7 +4,16 @@ from math import radians, sin, cos, sqrt, atan2
 from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO, emit, join_room
 
-RUNNERS = ["Gabby", "Maverick", "Vincent", "Jackson"]
+RUNNERS = ["Maverick", "Gabby", "Vincent", "Chris", "Emily", "Grace", "Jackson"]
+RUNNER_LABELS = {
+    "Maverick": "M.M",
+    "Gabby": "G.L",
+    "Vincent": "V.L",
+    "Chris": "C.M",
+    "Emily": "E.M",
+    "Grace": "G.M",
+    "Jackson": "J.M",
+}
 EVENT_CODE = os.environ.get("EVENT_CODE", "")
 ORGANIZER_CODE = os.environ.get("ORGANIZER_CODE", "")
 
@@ -52,7 +61,7 @@ def make_stats(runner, lat, lng, accuracy):
 
 @app.get("/")
 def runner_page():
-    return render_template("runner.html", runners=RUNNERS)
+    return render_template("runner.html", runners=RUNNERS, runner_labels=RUNNER_LABELS)
 
 @app.get("/organizer")
 def organizer_page():
