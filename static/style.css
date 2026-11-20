@@ -13,3 +13,16 @@ button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#e9edf0;col
 .runner-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}
 .runner-row{background:#f1f4f6;padding:12px;border-radius:10px;font-weight:650}
 [hidden]{display:none!important}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0}
+.stats>div{background:#f1f5f3;border-radius:13px;padding:14px 10px;text-align:center;min-width:0}
+.stats span{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;color:#65717e}
+.stats strong{display:block;font-size:clamp(21px,4vw,30px);line-height:1.35;color:#176b45;font-variant-numeric:tabular-nums}
+.stats small{display:block;color:#65717e;font-size:11px}
+.runner-card{background:#fff;border:1px solid #e1e6e9;border-radius:15px;padding:14px;box-shadow:0 5px 18px #17202a0a}
+.runner-card h3{margin:0 0 8px}
+.stats.compact{margin:8px 0}
+.stats.compact>div{padding:10px 4px}
+.stats.compact strong{font-size:clamp(18px,3vw,24px)}
+.runner-status{font-size:12px;color:#65717e;margin:8px 0 0}
+@media(max-width:420px){body{padding:12px}.panel,.wide{padding:19px}.stats{gap:6px}.stats>div{padding:10px 4px}}
