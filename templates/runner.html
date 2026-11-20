@@ -12,15 +12,18 @@
   <h1>Share your location</h1>
   <p class="muted">Choose your name and enter the private event code provided by the organizer. Location sharing starts only when you tap the button.</p>
   <label for="runner">Your name</label>
-  <select id="runner">
-    {% for name in runners %}<option>{{ name }}</option>{% endfor %}
-  </select>
+  <select id="runner">{% for name in runners %}<option>{{ name }}</option>{% endfor %}</select>
   <label for="eventCode">Private event code</label>
   <input id="eventCode" type="password" autocomplete="off" placeholder="Enter event code">
   <button id="start">Start sharing</button>
   <button id="stop" class="secondary" disabled>Stop sharing</button>
   <p id="status" class="status" role="status">Location sharing is off.</p>
-  <p class="small">Your phone may ask for location permission. You can stop sharing at any time. Keep the event code private.</p>
+  <section class="stats" aria-live="polite">
+    <div><span>PACE</span><strong id="pace">—</strong><small>min/mile</small></div>
+    <div><span>TIME</span><strong id="elapsed">00:00:00</strong><small>elapsed</small></div>
+    <div><span>MILES</span><strong id="miles">0.00</strong><small>distance</small></div>
+  </section>
+  <p class="small">Stats update as GPS points arrive. Distance and average pace are estimates, and may vary with GPS accuracy. You can stop sharing at any time.</p>
 </main>
 <script>
 const socket = io();
@@ -32,8 +35,14 @@ function status(message, error=false) {
   statusEl.textContent = message;
   statusEl.className = error ? "status error" : "status";
 }
+function showStats(d) {
+  document.getElementById("pace").textContent = d.pace || "—";
+  document.getElementById("elapsed").textContent = d.elapsed || "00:00:00";
+  document.getElementById("miles").textContent = Number(d.miles || 0).toFixed(2);
+}
 socket.on("connect_error", () => status("Could not connect. Please refresh and try again.", true));
 socket.on("access_error", d => status(d.message || "Access denied.", true));
+socket.on("runner_stats", showStats);
 socket.on("share_ready", () => {
   if (!navigator.geolocation) { status("This browser does not support location sharing.", true); return; }
   watchId = navigator.geolocation.watchPosition(position => {
@@ -62,6 +71,7 @@ stopBtn.addEventListener("click", () => {
   socket.emit("runner_stopped", { runner: selectedRunner, event_code: eventCode });
   startBtn.disabled = false; stopBtn.disabled = true;
   status("Location sharing is off.");
+  showStats({pace:"—",elapsed:"00:00:00",miles:0});
 });
 </script>
 </body></html>
