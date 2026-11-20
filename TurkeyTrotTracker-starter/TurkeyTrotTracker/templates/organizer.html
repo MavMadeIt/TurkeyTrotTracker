@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TurkeyTrotTracker — Organizer</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<main class="wide">
+  <div class="eyebrow">🦃 TURKEY TROT</div>
+  <h1>Organizer live map</h1>
+  <section class="login" id="login">
+    <p class="muted">Enter the private organizer code to view runner locations.</p>
+    <label for="organizerCode">Organizer code</label>
+    <input id="organizerCode" type="password" autocomplete="off">
+    <button id="connect">Open live map</button>
+    <p id="loginStatus" class="status" role="status"></p>
+  </section>
+  <section id="tracker" hidden>
+    <div id="map"></div>
+    <div id="runnerList" class="runner-list"></div>
+    <p class="small">Locations are held temporarily in server memory and are cleared when the service restarts. Only share this page and its code with authorized organizers.</p>
+  </section>
+</main>
+<script>
+const socket = io();
+const names = ["Gabby", "Maverick", "Vincent", "Jackson"];
+const markers = {};
+let map;
+const list = document.getElementById("runnerList");
+function setStatus(message, error=false) {
+  const el = document.getElementById("loginStatus");
+  el.textContent = message; el.className = error ? "status error" : "status";
+}
+function renderRunner(name, text) {
+  let el = document.getElementById("runner-" + name);
+  if (!el) { el = document.createElement("div"); el.id = "runner-" + name; el.className = "runner-row"; list.appendChild(el); }
+  el.textContent = name + " — " + text;
+}
+function updateLocation(loc) {
+  if (!map) return;
+  const point = [loc.lat, loc.lng];
+  if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(loc.runner);
+  else markers[loc.runner].setLatLng(point);
+  renderRunner(loc.runner, "Live · accuracy about " + loc.accuracy + " m");
+}
+document.getElementById("connect").addEventListener("click", () => {
+  const code = document.getElementById("organizerCode").value.trim();
+  if (!code) { setStatus("Enter the organizer code.", true); return; }
+  setStatus("Connecting…");
+  socket.emit("join_organizer", { organizer_code: code });
+});
+socket.on("access_error", d => setStatus(d.message || "Access denied.", true));
+socket.on("initial_locations", locations => {
+  document.getElementById("login").hidden = true;
+  document.getElementById("tracker").hidden = false;
+  map = L.map("map").setView([37.8, -90.4], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  names.forEach(n => renderRunner(n, "Waiting for location"));
+  locations.forEach(updateLocation);
+});
+socket.on("location_update", updateLocation);
+socket.on("runner_stopped", d => {
+  if (markers[d.runner]) { map.removeLayer(markers[d.runner]); delete markers[d.runner]; }
+  renderRunner(d.runner, "Sharing stopped");
+});
+</script>
+</body></html>
