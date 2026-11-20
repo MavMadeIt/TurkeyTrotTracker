@@ -1,81 +1,167 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f3e9">
   <title>TurkeyTrotTracker — Runner</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 </head>
 <body>
 <main class="panel">
   <div class="eyebrow">🦃 TURKEY TROT</div>
   <h1>Share your location</h1>
-  <p class="muted">Choose your name and enter the private event code provided by the organizer. Location sharing starts only when you tap the button.</p>
-  <label for="runner">Your name</label>
-  <select id="runner">{% for name in runners %}<option value="{{ name }}"><select id="runner">
-{% for name in runners %}
-<option value="{{ name }}">{{ name }}</option>
-{% endfor %}
-</select></option>{% endfor %}</select>
-  <label for="eventCode">Private event code</label>
-  <input id="eventCode" type="password" autocomplete="off" placeholder="Enter event code">
-  <button id="start">Start sharing</button>
-  <button id="stop" class="secondary" disabled>Stop sharing</button>
-  <p id="status" class="status" role="status">Location sharing is off.</p>
+  <p class="muted">Choose your runner label and enter the event code. Your location is shared with the organizer only after you press Start sharing.</p>
+
+  <label for="runner">Runner</label>
+  <select id="runner" name="runner" required>
+    <option value="" selected disabled>Choose your name</option>
+    {% for name in runners %}
+      <option value="{{ name }}">{{ name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="eventCode">Event code</label>
+  <input id="eventCode" type="password" autocomplete="off" placeholder="Enter event code" required>
+
+  <button id="start" type="button">Start sharing</button>
+  <button id="stop" class="secondary" type="button" disabled>Stop sharing</button>
+  <p id="status" class="status" role="status" aria-live="polite">Location sharing is off.</p>
+
   <section class="stats" aria-live="polite">
     <div><span>PACE</span><strong id="pace">—</strong><small>min/mile</small></div>
     <div><span>TIME</span><strong id="elapsed">00:00:00</strong><small>elapsed</small></div>
     <div><span>MILES</span><strong id="miles">0.00</strong><small>distance</small></div>
   </section>
-  <p class="small">Stats update as GPS points arrive. Distance and average pace are estimates, and may vary with GPS accuracy. You can stop sharing at any time.</p>
+  <p class="small">Keep this page open while sharing. Stats update when GPS points arrive. Distance and pace are estimates and can vary with GPS accuracy. You can stop sharing at any time.</p>
 </main>
+
 <script>
-const socket = io();
-let watchId = null, selectedRunner = null, eventCode = null;
-const statusEl = document.getElementById("status");
-const startBtn = document.getElementById("start");
-const stopBtn = document.getElementById("stop");
-function status(message, error=false) {
-  statusEl.textContent = message;
-  statusEl.className = error ? "status error" : "status";
-}
-function showStats(d) {
-  document.getElementById("pace").textContent = d.pace || "—";
-  document.getElementById("elapsed").textContent = d.elapsed || "00:00:00";
-  document.getElementById("miles").textContent = Number(d.miles || 0).toFixed(2);
-}
-socket.on("connect_error", () => status("Could not connect. Please refresh and try again.", true));
-socket.on("access_error", d => status(d.message || "Access denied.", true));
-socket.on("runner_stats", showStats);
-socket.on("share_ready", () => {
-  if (!navigator.geolocation) { status("This browser does not support location sharing.", true); return; }
-  watchId = navigator.geolocation.watchPosition(position => {
-    socket.emit("runner_location", {
-      runner: selectedRunner, event_code: eventCode,
-      lat: position.coords.latitude, lng: position.coords.longitude,
-      accuracy: position.coords.accuracy
+(() => {
+  const socket = io();
+  let watchId = null;
+  let selectedRunner = null;
+  let eventCode = null;
+  let joining = false;
+
+  const runnerSelect = document.getElementById('runner');
+  const codeInput = document.getElementById('eventCode');
+  const startButton = document.getElementById('start');
+  const stopButton = document.getElementById('stop');
+  const statusElement = document.getElementById('status');
+
+  function setStatus(message, isError = false) {
+    statusElement.textContent = message;
+    statusElement.className = isError ? 'status error' : 'status';
+  }
+
+  function resetStats() {
+    document.getElementById('pace').textContent = '—';
+    document.getElementById('elapsed').textContent = '00:00:00';
+    document.getElementById('miles').textContent = '0.00';
+  }
+
+  function displayStats(data) {
+    document.getElementById('pace').textContent = data.pace || '—';
+    document.getElementById('elapsed').textContent = data.elapsed || '00:00:00';
+    document.getElementById('miles').textContent = Number(data.miles || 0).toFixed(2);
+  }
+
+  socket.on('connect_error', () => {
+    joining = false;
+    startButton.disabled = false;
+    setStatus('Could not connect to the tracker. Refresh the page and try again.', true);
+  });
+
+  socket.on('access_error', (data) => {
+    joining = false;
+    startButton.disabled = false;
+    setStatus((data && data.message) || 'Access denied. Check the event code.', true);
+  });
+
+  socket.on('runner_stats', displayStats);
+
+  socket.on('share_ready', () => {
+    joining = false;
+    if (!navigator.geolocation) {
+      startButton.disabled = false;
+      setStatus('This browser does not support location sharing.', true);
+      return;
+    }
+
+    watchId = navigator.geolocation.watchPosition((position) => {
+      socket.emit('runner_location', {
+        runner: selectedRunner,
+        event_code: eventCode,
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      });
+      setStatus('Sharing location for ' + selectedRunner + '.');
+    }, (error) => {
+      setStatus('Location unavailable: ' + error.message, true);
+    }, {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 20000
     });
-    status("Sharing location for " + document.getElementById("runner").selectedOptions[0].text + ".");
-  }, err => status("Location unavailable: " + err.message, true),
-  { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
-  startBtn.disabled = true; stopBtn.disabled = false;
-});
-startBtn.addEventListener("click", () => {
-  if (!window.isSecureContext) { status("This page must be opened using its HTTPS address.", true); return; }
-  if (!navigator.geolocation) { status("Location sharing is not supported by this browser.", true); return; }
-  selectedRunner = document.getElementById("runner").value;
-  eventCode = document.getElementById("eventCode").value.trim();
-  if (!eventCode) { status("Enter the event code first.", true); return; }
-  status("Connecting…");
-  socket.emit("join_runner", { runner: selectedRunner, event_code: eventCode });
-});
-stopBtn.addEventListener("click", () => {
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId = null;
-  socket.emit("runner_stopped", { runner: selectedRunner, event_code: eventCode });
-  startBtn.disabled = false; stopBtn.disabled = true;
-  status("Location sharing is off.");
-  showStats({pace:"—",elapsed:"00:00:00",miles:0});
-});
+
+    runnerSelect.disabled = true;
+    codeInput.disabled = true;
+    startButton.disabled = true;
+    stopButton.disabled = false;
+  });
+
+  startButton.addEventListener('click', () => {
+    if (joining || watchId !== null) return;
+    if (!window.isSecureContext) {
+      setStatus('Open this page using its HTTPS address to share GPS.', true);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setStatus('This browser does not support location sharing.', true);
+      return;
+    }
+    if (!runnerSelect.value) {
+      setStatus('Choose your runner label first.', true);
+      return;
+    }
+
+    eventCode = codeInput.value.trim();
+    if (!eventCode) {
+      setStatus('Enter the event code first.', true);
+      return;
+    }
+
+    selectedRunner = runnerSelect.value;
+    joining = true;
+    startButton.disabled = true;
+    setStatus('Connecting…');
+    socket.emit('join_runner', {
+      runner: selectedRunner,
+      event_code: eventCode
+    });
+  });
+
+  stopButton.addEventListener('click', () => {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (selectedRunner && eventCode) {
+      socket.emit('runner_stopped', {
+        runner: selectedRunner,
+        event_code: eventCode
+      });
+    }
+    runnerSelect.disabled = false;
+    codeInput.disabled = false;
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    joining = false;
+    setStatus('Location sharing stopped.');
+    resetStats();
+  });
+})();
 </script>
-</body></html>
+</body>
+</html>
