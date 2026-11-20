@@ -28,13 +28,19 @@ def make_stats(runner, lat, lng, accuracy):
     now = datetime.now(timezone.utc)
     session = runner_sessions.get(runner)
     if session is None:
-        session = {"started_at": now, "last_lat": lat, "last_lng": lng, "miles": 0.0}
+        session = {"started_at": now, "last_lat": lat, "last_lng": lng, "miles": 0.0, "trail": []}
         runner_sessions[runner] = session
+        if accuracy <= 100:
+            session["trail"].append([lat, lng])
     else:
         step = distance_miles(session["last_lat"], session["last_lng"], lat, lng)
-        # Ignore implausible GPS jumps; keep the last valid point for the next update.
-        if step <= 0.25 and accuracy <= 100:
+        # Ignore inaccurate fixes and implausible jumps in both distance and route trail.
+        if accuracy <= 100 and step <= 0.25:
             session["miles"] += step
+            session["trail"].append([lat, lng])
+            # Keep the in-memory route bounded during long events.
+            if len(session["trail"]) > 5000:
+                session["trail"] = session["trail"][-5000:]
         session["last_lat"], session["last_lng"] = lat, lng
 
     elapsed = max(0, int((now - session["started_at"]).total_seconds()))
@@ -47,7 +53,8 @@ def make_stats(runner, lat, lng, accuracy):
         "updated_at": now.isoformat(),
         "elapsed_seconds": elapsed,
         "elapsed": f"{elapsed // 3600:02d}:{(elapsed % 3600) // 60:02d}:{elapsed % 60:02d}",
-        "miles": round(miles, 2), "pace": pace
+        "miles": round(miles, 2), "pace": pace,
+        "trail": list(session["trail"])
     }
 
 @app.get("/")
@@ -99,8 +106,13 @@ def handle_runner_location(data):
         return
     location = make_stats(runner, lat, lng, accuracy)
     latest_locations[runner] = location
-    socketio.emit("location_update", location, room="organizers")
-    emit("runner_stats", location)
+    # Send only the newest route point on live updates; the organizer receives
+    # the complete trail when first connecting through initial_locations.
+    organizer_update = {key: value for key, value in location.items() if key != "trail"}
+    organizer_update["trail_point"] = [lat, lng] if accuracy <= 100 else None
+    socketio.emit("location_update", organizer_update, room="organizers")
+    runner_stats = {key: value for key, value in location.items() if key != "trail"}
+    emit("runner_stats", runner_stats)
 
 @socketio.on("runner_stopped")
 def handle_runner_stopped(data):
