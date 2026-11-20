@@ -12,7 +12,7 @@
   <h1>Share your location</h1>
   <p class="muted">Choose your name and enter the private event code provided by the organizer. Location sharing starts only when you tap the button.</p>
   <label for="runner">Your name</label>
-  <select id="runner">{% for name in runners %}<option>{{ name }}</option>{% endfor %}</select>
+  <select id="runner">{% for name in runners %}<option value="{{ name }}">{{ runner_labels[name] }}</option>{% endfor %}</select>
   <label for="eventCode">Private event code</label>
   <input id="eventCode" type="password" autocomplete="off" placeholder="Enter event code">
   <button id="start">Start sharing</button>
@@ -51,7 +51,7 @@ socket.on("share_ready", () => {
       lat: position.coords.latitude, lng: position.coords.longitude,
       accuracy: position.coords.accuracy
     });
-    status("Sharing location for " + selectedRunner + ".");
+    status("Sharing location for " + document.getElementById("runner").selectedOptions[0].text + ".");
   }, err => status("Location unavailable: " + err.message, true),
   { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
   startBtn.disabled = true; stopBtn.disabled = false;
