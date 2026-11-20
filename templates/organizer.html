@@ -22,30 +22,51 @@
   <section id="tracker" hidden>
     <div id="map"></div>
     <div id="runnerList" class="runner-list"></div>
-    <p class="small">Locations are held temporarily in server memory and are cleared when the service restarts. Only share this page and its code with authorized organizers.</p>
+    <p class="small">Pace is average minutes per mile. Time is elapsed since the first GPS point. Distance and pace are GPS estimates. Locations and stats are held temporarily in server memory and clear when the service restarts.</p>
   </section>
 </main>
 <script>
 const socket = io();
 const names = ["Gabby", "Maverick", "Vincent", "Jackson"];
-const markers = {};
+const markers = {}, rows = {};
 let map;
 const list = document.getElementById("runnerList");
 function setStatus(message, error=false) {
   const el = document.getElementById("loginStatus");
   el.textContent = message; el.className = error ? "status error" : "status";
 }
-function renderRunner(name, text) {
-  let el = document.getElementById("runner-" + name);
-  if (!el) { el = document.createElement("div"); el.id = "runner-" + name; el.className = "runner-row"; list.appendChild(el); }
-  el.textContent = name + " — " + text;
+function renderRunner(name, data) {
+  let card = rows[name];
+  if (!card) {
+    card = document.createElement("article");
+    card.className = "runner-card";
+    const heading = document.createElement("h3"); heading.textContent = name;
+    const grid = document.createElement("div"); grid.className = "stats compact";
+    [["pace","PACE","min/mile"],["elapsed","TIME","elapsed"],["miles","MILES","distance"]].forEach(([key,label,unit]) => {
+      const cell = document.createElement("div");
+      const caption = document.createElement("span"); caption.textContent = label;
+      const value = document.createElement("strong"); value.className = key;
+      const small = document.createElement("small"); small.textContent = unit;
+      cell.append(caption,value,small); grid.appendChild(cell);
+    });
+    const status = document.createElement("p"); status.className = "runner-status";
+    card.append(heading,grid,status); list.appendChild(card);
+    rows[name] = card;
+  }
+  const d = data || {};
+  card.querySelector(".pace").textContent = d.pace || "—";
+  card.querySelector(".elapsed").textContent = d.elapsed || "00:00:00";
+  card.querySelector(".miles").textContent = Number(d.miles || 0).toFixed(2);
+  card.querySelector(".runner-status").textContent = d.updated_at
+    ? "Live · GPS accuracy about " + (d.accuracy ?? "—") + " m"
+    : (d.stopped ? "Sharing stopped" : "Waiting for location");
 }
 function updateLocation(loc) {
   if (!map) return;
   const point = [loc.lat, loc.lng];
   if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(loc.runner);
   else markers[loc.runner].setLatLng(point);
-  renderRunner(loc.runner, "Live · accuracy about " + loc.accuracy + " m");
+  renderRunner(loc.runner, loc);
 }
 document.getElementById("connect").addEventListener("click", () => {
   const code = document.getElementById("organizerCode").value.trim();
@@ -61,13 +82,13 @@ socket.on("initial_locations", locations => {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
-  names.forEach(n => renderRunner(n, "Waiting for location"));
+  names.forEach(n => renderRunner(n, null));
   locations.forEach(updateLocation);
 });
 socket.on("location_update", updateLocation);
 socket.on("runner_stopped", d => {
   if (markers[d.runner]) { map.removeLayer(markers[d.runner]); delete markers[d.runner]; }
-  renderRunner(d.runner, "Sharing stopped");
+  renderRunner(d.runner, {stopped:true});
 });
 </script>
 </body></html>
