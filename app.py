@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from datetime import datetime, timezone
 from math import radians, sin, cos, sqrt, atan2
