@@ -27,7 +27,11 @@
 </main>
 <script>
 const socket = io();
-const names = ["Gabby", "Maverick", "Vincent", "Jackson"];
+const names = ["Maverick", "Gabby", "Vincent", "Chris", "Emily", "Grace", "Jackson"];
+const labels = {
+  "Maverick": "M.M", "Gabby": "G.L", "Vincent": "V.L",
+  "Chris": "C.M", "Emily": "E.M", "Grace": "G.M", "Jackson": "J.M"
+};
 const markers = {}, rows = {};
 let map;
 const list = document.getElementById("runnerList");
@@ -40,7 +44,7 @@ function renderRunner(name, data) {
   if (!card) {
     card = document.createElement("article");
     card.className = "runner-card";
-    const heading = document.createElement("h3"); heading.textContent = name;
+    const heading = document.createElement("h3"); heading.textContent = labels[name] || name;
     const grid = document.createElement("div"); grid.className = "stats compact";
     [["pace","PACE","min/mile"],["elapsed","TIME","elapsed"],["miles","MILES","distance"]].forEach(([key,label,unit]) => {
       const cell = document.createElement("div");
@@ -64,7 +68,7 @@ function renderRunner(name, data) {
 function updateLocation(loc) {
   if (!map) return;
   const point = [loc.lat, loc.lng];
-  if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(loc.runner);
+  if (!markers[loc.runner]) markers[loc.runner] = L.marker(point).addTo(map).bindPopup(labels[loc.runner] || loc.runner);
   else markers[loc.runner].setLatLng(point);
   renderRunner(loc.runner, loc);
 }
